@@ -19,4 +19,6 @@ description: |-
 - `api_token` (String, Sensitive) Atlassian API token for authentication. Can also be set via ATLASSIAN_API_TOKEN environment variable.
 - `base_url` (String) Base URL for Atlassian API. Defaults to https://api.atlassian.com. Can also be set via ATLASSIAN_BASE_URL environment variable.
 - `email` (String) Email address associated with the Atlassian account. Can also be set via ATLASSIAN_EMAIL environment variable.
+- `org_id` (String) Atlassian organization ID for admin APIs. Can also be set via ATLASSIAN_ORG_ID environment variable.
 - `organization` (String) Atlassian organization/site name. Can also be set via ATLASSIAN_ORGANIZATION environment variable.
+- `site_id` (String) Atlassian site ID (cloudid) for API access. Required for Jira/Confluence APIs. Can also be set via ATLASSIAN_SITE_ID environment variable.

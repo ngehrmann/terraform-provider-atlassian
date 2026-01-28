@@ -31,6 +31,8 @@ type AtlassianProviderModel struct {
 	ApiToken     types.String `tfsdk:"api_token"`
 	Email        types.String `tfsdk:"email"`
 	Organization types.String `tfsdk:"organization"`
+	SiteId       types.String `tfsdk:"site_id"`
+	OrgId        types.String `tfsdk:"org_id"`
 	BaseUrl      types.String `tfsdk:"base_url"`
 }
 
@@ -53,6 +55,14 @@ func (p *AtlassianProvider) Schema(ctx context.Context, req provider.SchemaReque
 			},
 			"organization": schema.StringAttribute{
 				MarkdownDescription: "Atlassian organization/site name. Can also be set via ATLASSIAN_ORGANIZATION environment variable.",
+				Optional:            true,
+			},
+			"site_id": schema.StringAttribute{
+				MarkdownDescription: "Atlassian site ID (cloudid) for API access. Required for Jira/Confluence APIs. Can also be set via ATLASSIAN_SITE_ID environment variable.",
+				Optional:            true,
+			},
+			"org_id": schema.StringAttribute{
+				MarkdownDescription: "Atlassian organization ID for admin APIs. Can also be set via ATLASSIAN_ORG_ID environment variable.",
 				Optional:            true,
 			},
 			"base_url": schema.StringAttribute{
@@ -101,6 +111,24 @@ func (p *AtlassianProvider) Configure(ctx context.Context, req provider.Configur
 		)
 	}
 
+	if data.SiteId.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("site_id"),
+			"Unknown Atlassian Site ID",
+			"The provider cannot create the Atlassian API client as there is an unknown configuration value for the Atlassian site ID. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the ATLASSIAN_SITE_ID environment variable.",
+		)
+	}
+
+	if data.OrgId.IsUnknown() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("org_id"),
+			"Unknown Atlassian Org ID",
+			"The provider cannot create the Atlassian API client as there is an unknown configuration value for the Atlassian org ID. "+
+				"Either target apply the source of the value first, set the value statically in the configuration, or use the ATLASSIAN_ORG_ID environment variable.",
+		)
+	}
+
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -111,6 +139,8 @@ func (p *AtlassianProvider) Configure(ctx context.Context, req provider.Configur
 	apiToken := os.Getenv("ATLASSIAN_API_TOKEN")
 	email := os.Getenv("ATLASSIAN_EMAIL")
 	organization := os.Getenv("ATLASSIAN_ORGANIZATION")
+	siteId := os.Getenv("ATLASSIAN_SITE_ID")
+	orgId := os.Getenv("ATLASSIAN_ORG_ID")
 	baseUrl := os.Getenv("ATLASSIAN_BASE_URL")
 
 	if !data.ApiToken.IsNull() {
@@ -123,6 +153,14 @@ func (p *AtlassianProvider) Configure(ctx context.Context, req provider.Configur
 
 	if !data.Organization.IsNull() {
 		organization = data.Organization.ValueString()
+	}
+
+	if !data.SiteId.IsNull() {
+		siteId = data.SiteId.ValueString()
+	}
+
+	if !data.OrgId.IsNull() {
+		orgId = data.OrgId.ValueString()
 	}
 
 	if !data.BaseUrl.IsNull() {
@@ -171,7 +209,7 @@ func (p *AtlassianProvider) Configure(ctx context.Context, req provider.Configur
 	}
 
 	// Create a new Atlassian client using the configuration values
-	client, err := NewAtlassianClient(apiToken, email, organization, baseUrl)
+	client, err := NewAtlassianClient(apiToken, email, organization, siteId, orgId, baseUrl)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create Atlassian API Client",
