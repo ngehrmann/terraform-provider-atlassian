@@ -51,9 +51,6 @@ Thumbs.db
 dist/
 build/
 
-# Documentation
-docs/
-
 # Test artifacts
 crash.log
 crash.*.log
