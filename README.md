@@ -34,7 +34,12 @@ The provider requires the following authentication parameters:
 
 - **API Token**: Your Atlassian API token
 - **Email**: Email address associated with your Atlassian account
-- **Organization**: Your Atlassian organization/site name
+
+And at least one of the following identifiers depending on which APIs you're using:
+
+- **Organization**: Your Atlassian organization/site name (legacy, for fallback)
+- **Org ID**: Organization ID for Atlassian Admin APIs (teams, users, org settings)
+- **Site ID**: Site ID (cloudid) for product APIs (Jira, Confluence)
 
 These can be provided via:
 1. Provider configuration block
@@ -42,7 +47,11 @@ These can be provided via:
    - `ATLASSIAN_API_TOKEN`
    - `ATLASSIAN_EMAIL`
    - `ATLASSIAN_ORGANIZATION`
+   - `ATLASSIAN_ORG_ID`
+   - `ATLASSIAN_SITE_ID`
    - `ATLASSIAN_BASE_URL` (optional, defaults to https://api.atlassian.com)
+
+**Note**: For team management operations, you need either `org_id` or `organization`. For Jira/Confluence operations, you need `site_id`. See [configuration.md](docs/configuration.md) for detailed information about when to use each ID.
 
 ### Provider Configuration
 
@@ -59,8 +68,16 @@ terraform {
 provider "atlassian" {
   api_token    = var.atlassian_api_token
   email        = var.atlassian_email
-  organization = var.atlassian_organization
-  # base_url   = "https://api.atlassian.com" # Optional
+  
+  # For admin operations (teams, users, org settings)
+  org_id       = var.atlassian_org_id       # Preferred
+  organization = var.atlassian_organization # Fallback
+  
+  # For product APIs (Jira, Confluence)  
+  site_id      = var.atlassian_site_id
+  
+  # Optional
+  # base_url   = "https://api.atlassian.com"
 }
 ```
 

@@ -14,6 +14,8 @@ type AtlassianClient struct {
 	APIToken     string
 	Email        string
 	Organization string
+	SiteId       string
+	OrgId        string
 	BaseURL      string
 	HTTPClient   *http.Client
 }
@@ -52,11 +54,13 @@ type UpdateTeamRequest struct {
 }
 
 // NewAtlassianClient creates a new Atlassian API client
-func NewAtlassianClient(apiToken, email, organization, baseURL string) (*AtlassianClient, error) {
+func NewAtlassianClient(apiToken, email, organization, siteId, orgId, baseURL string) (*AtlassianClient, error) {
 	return &AtlassianClient{
 		APIToken:     apiToken,
 		Email:        email,
 		Organization: organization,
+		SiteId:       siteId,
+		OrgId:        orgId,
 		BaseURL:      baseURL,
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
@@ -95,7 +99,7 @@ func (c *AtlassianClient) makeRequest(method, path string, body interface{}) (*h
 
 // CreateTeam creates a new team in Atlassian
 func (c *AtlassianClient) CreateTeam(team *CreateTeamRequest) (*Team, error) {
-	resp, err := c.makeRequest("POST", "/admin/v1/orgs/"+c.Organization+"/teams", team)
+	resp, err := c.makeRequest("POST", c.getTeamAPIPath("/teams"), team)
 	if err != nil {
 		return nil, fmt.Errorf("error creating team: %w", err)
 	}
@@ -116,7 +120,7 @@ func (c *AtlassianClient) CreateTeam(team *CreateTeamRequest) (*Team, error) {
 
 // GetTeam retrieves a team by ID
 func (c *AtlassianClient) GetTeam(teamID string) (*Team, error) {
-	resp, err := c.makeRequest("GET", "/admin/v1/orgs/"+c.Organization+"/teams/"+teamID, nil)
+	resp, err := c.makeRequest("GET", c.getTeamAPIPath("/teams/"+teamID), nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting team: %w", err)
 	}
@@ -141,7 +145,7 @@ func (c *AtlassianClient) GetTeam(teamID string) (*Team, error) {
 
 // UpdateTeam updates an existing team
 func (c *AtlassianClient) UpdateTeam(teamID string, updateReq *UpdateTeamRequest) (*Team, error) {
-	resp, err := c.makeRequest("PUT", "/admin/v1/orgs/"+c.Organization+"/teams/"+teamID, updateReq)
+	resp, err := c.makeRequest("PUT", c.getTeamAPIPath("/teams/"+teamID), updateReq)
 	if err != nil {
 		return nil, fmt.Errorf("error updating team: %w", err)
 	}
@@ -166,7 +170,7 @@ func (c *AtlassianClient) UpdateTeam(teamID string, updateReq *UpdateTeamRequest
 
 // DeleteTeam deletes a team
 func (c *AtlassianClient) DeleteTeam(teamID string) error {
-	resp, err := c.makeRequest("DELETE", "/admin/v1/orgs/"+c.Organization+"/teams/"+teamID, nil)
+	resp, err := c.makeRequest("DELETE", c.getTeamAPIPath("/teams/"+teamID), nil)
 	if err != nil {
 		return fmt.Errorf("error deleting team: %w", err)
 	}
@@ -187,7 +191,7 @@ func (c *AtlassianClient) DeleteTeam(teamID string) error {
 
 // AddTeamMember adds a member to a team
 func (c *AtlassianClient) AddTeamMember(teamID string, member *TeamMember) error {
-	resp, err := c.makeRequest("POST", "/admin/v1/orgs/"+c.Organization+"/teams/"+teamID+"/members", member)
+	resp, err := c.makeRequest("POST", c.getTeamAPIPath("/teams/"+teamID+"/members"), member)
 	if err != nil {
 		return fmt.Errorf("error adding team member: %w", err)
 	}
@@ -203,7 +207,7 @@ func (c *AtlassianClient) AddTeamMember(teamID string, member *TeamMember) error
 
 // RemoveTeamMember removes a member from a team
 func (c *AtlassianClient) RemoveTeamMember(teamID, accountID string) error {
-	resp, err := c.makeRequest("DELETE", "/admin/v1/orgs/"+c.Organization+"/teams/"+teamID+"/members/"+accountID, nil)
+	resp, err := c.makeRequest("DELETE", c.getTeamAPIPath("/teams/"+teamID+"/members/"+accountID), nil)
 	if err != nil {
 		return fmt.Errorf("error removing team member: %w", err)
 	}
@@ -224,7 +228,7 @@ func (c *AtlassianClient) RemoveTeamMember(teamID, accountID string) error {
 
 // GetTeamMembers retrieves all members of a team
 func (c *AtlassianClient) GetTeamMembers(teamID string) ([]TeamMember, error) {
-	resp, err := c.makeRequest("GET", "/admin/v1/orgs/"+c.Organization+"/teams/"+teamID+"/members", nil)
+	resp, err := c.makeRequest("GET", c.getTeamAPIPath("/teams/"+teamID+"/members"), nil)
 	if err != nil {
 		return nil, fmt.Errorf("error getting team members: %w", err)
 	}
@@ -241,4 +245,35 @@ func (c *AtlassianClient) GetTeamMembers(teamID string) ([]TeamMember, error) {
 	}
 
 	return members, nil
+}
+
+// getSiteAPIPath returns the API path for site-specific operations (e.g., Jira, Confluence)
+// These typically use the site ID (cloudid) in the path
+func (c *AtlassianClient) getSiteAPIPath(endpoint string) string {
+	if c.SiteId != "" {
+		return fmt.Sprintf("/ex/jira/%s%s", c.SiteId, endpoint)
+	}
+	return endpoint
+}
+
+// getOrgAPIPath returns the API path for organization admin operations
+// These typically use the org ID in the path
+func (c *AtlassianClient) getOrgAPIPath(endpoint string) string {
+	if c.OrgId != "" {
+		return fmt.Sprintf("/admin/v1/orgs/%s%s", c.OrgId, endpoint)
+	}
+	if c.Organization != "" {
+		return fmt.Sprintf("/admin/v1/orgs/%s%s", c.Organization, endpoint)
+	}
+	return endpoint
+}
+
+// getTeamAPIPath returns the appropriate API path for team operations
+// This uses the organization ID for admin APIs
+func (c *AtlassianClient) getTeamAPIPath(endpoint string) string {
+	orgIdentifier := c.OrgId
+	if orgIdentifier == "" {
+		orgIdentifier = c.Organization
+	}
+	return fmt.Sprintf("/admin/v1/orgs/%s%s", orgIdentifier, endpoint)
 }
