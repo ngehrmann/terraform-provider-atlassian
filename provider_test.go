@@ -20,3 +20,22 @@ func testAccPreCheck(t *testing.T) {
 	// about the appropriate environment variables being set are common to see in a pre-check
 	// function.
 }
+
+func TestProvider(t *testing.T) {
+	// Basic test to verify provider can be instantiated
+	testAccPreCheck(t)
+
+	if len(testAccProtoV6ProviderFactories) == 0 {
+		t.Fatal("testAccProtoV6ProviderFactories should not be empty")
+	}
+
+	factory, exists := testAccProtoV6ProviderFactories["atlassian"]
+	if !exists {
+		t.Fatal("atlassian provider factory should exist")
+	}
+
+	_, err := factory()
+	if err != nil {
+		t.Fatalf("Provider factory should not return error: %v", err)
+	}
+}
