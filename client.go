@@ -247,27 +247,6 @@ func (c *AtlassianClient) GetTeamMembers(teamID string) ([]TeamMember, error) {
 	return members, nil
 }
 
-// getSiteAPIPath returns the API path for site-specific operations (e.g., Jira, Confluence)
-// These typically use the site ID (cloudid) in the path
-func (c *AtlassianClient) getSiteAPIPath(endpoint string) string {
-	if c.SiteId != "" {
-		return fmt.Sprintf("/ex/jira/%s%s", c.SiteId, endpoint)
-	}
-	return endpoint
-}
-
-// getOrgAPIPath returns the API path for organization admin operations
-// These typically use the org ID in the path
-func (c *AtlassianClient) getOrgAPIPath(endpoint string) string {
-	if c.OrgId != "" {
-		return fmt.Sprintf("/admin/v1/orgs/%s%s", c.OrgId, endpoint)
-	}
-	if c.Organization != "" {
-		return fmt.Sprintf("/admin/v1/orgs/%s%s", c.Organization, endpoint)
-	}
-	return endpoint
-}
-
 // getTeamAPIPath returns the appropriate API path for team operations
 // This uses the organization ID for admin APIs
 func (c *AtlassianClient) getTeamAPIPath(endpoint string) string {
