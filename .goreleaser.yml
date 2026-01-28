@@ -1,9 +1,12 @@
 # Visit https://goreleaser.com for documentation on how to customize this
 # behavior.
+version: 2
+
 before:
   hooks:
     # this is just an example and not a requirement for provider building/publishing
     - go mod tidy
+    - go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest
     - go generate ./...
 
 builds:
@@ -25,12 +28,15 @@ builds:
     goarch:
       - amd64
       - "386"
-      - arm
       - arm64
     ignore:
       - goos: darwin
         goarch: "386"
       - goos: linux
+        goarch: "386"
+      - goos: freebsd
+        goarch: "386"
+      - goos: windows
         goarch: "386"
     binary: "{{ .ProjectName }}_v{{ .Version }}"
 
