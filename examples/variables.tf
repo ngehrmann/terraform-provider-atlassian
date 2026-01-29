@@ -22,3 +22,15 @@ variable "atlassian_base_url" {
   type        = string
   default     = "https://api.atlassian.com"
 }
+
+variable "atlassian_org_id" {
+  description = "Atlassian organization ID"
+  type        = string
+  default     = null
+}
+
+variable "atlassian_site_id" {
+  description = "Atlassian site ID"
+  type        = string
+  default     = null
+}

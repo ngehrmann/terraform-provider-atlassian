@@ -120,8 +120,13 @@ func (c *AtlassianClient) makeRequestWithHeaders(method, path string, body inter
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
 
-	// Set authentication headers - use Bearer token for Teams API
-	req.Header.Set("Authorization", "Bearer "+c.APIToken)
+	// Set authentication headers
+	if c.Email != "" {
+		req.SetBasicAuth(c.Email, c.APIToken)
+	} else {
+		// Use Bearer token for Teams API if no email provided (e.g. Org API token)
+		req.Header.Set("Authorization", "Bearer "+c.APIToken)
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	// Set default Accept header unless custom header provided
