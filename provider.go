@@ -176,27 +176,28 @@ func (p *AtlassianProvider) Configure(ctx context.Context, req provider.Configur
 			"Missing Atlassian API Token",
 			"The provider cannot create the Atlassian API client as there is a missing or empty value for the Atlassian API token. "+
 				"Set the api_token value in the configuration or use the ATLASSIAN_API_TOKEN environment variable. "+
-				"If either is already set, ensure the value is not empty.",
+				"If either is already set, ensure the value is not empty. For Teams API, use an Atlassian Admin API token.",
 		)
 	}
 
-	if email == "" {
+	if orgId == "" {
 		resp.Diagnostics.AddAttributeError(
-			path.Root("email"),
-			"Missing Atlassian Email",
-			"The provider cannot create the Atlassian API client as there is a missing or empty value for the Atlassian email. "+
-				"Set the email value in the configuration or use the ATLASSIAN_EMAIL environment variable. "+
-				"If either is already set, ensure the value is not empty.",
+			path.Root("org_id"),
+			"Missing Atlassian Organization ID",
+			"The provider cannot create the Atlassian API client as there is a missing or empty value for the Atlassian organization ID. "+
+				"Set the org_id value in the configuration or use the ATLASSIAN_ORG_ID environment variable. "+
+				"If either is already set, ensure the value is not empty. This is required for Teams API.",
 		)
 	}
 
-	if organization == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("organization"),
-			"Missing Atlassian Organization",
-			"The provider cannot create the Atlassian API client as there is a missing or empty value for the Atlassian organization. "+
-				"Set the organization value in the configuration or use the ATLASSIAN_ORGANIZATION environment variable. "+
-				"If either is already set, ensure the value is not empty.",
+	// Email and organization are now optional - keep for backward compatibility
+	// but warn if org_id is missing
+	if organization == "" && orgId == "" {
+		resp.Diagnostics.AddAttributeWarning(
+			path.Root("org_id"),
+			"Missing Organization Identifier",
+			"Neither organization nor org_id is set. Some APIs may not work correctly. "+
+				"For Teams API, org_id is required.",
 		)
 	}
 

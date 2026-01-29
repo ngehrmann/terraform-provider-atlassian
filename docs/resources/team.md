@@ -17,20 +17,21 @@ Team resource for managing Atlassian teams.
 
 ### Required
 
-- `name` (String) Team name
-- `type` (String) Team type (e.g., 'development', 'support', 'management')
+- `description` (String) Team description
+- `display_name` (String) Team display name
+- `team_type` (String) Team type (OPEN, MEMBER_INVITE, EXTERNAL, ORG_ADMIN_MANAGED)
 
 ### Optional
 
-- `description` (String) Team description
 - `members` (Attributes Set) Team members (see [below for nested schema](#nestedatt--members))
-- `organization` (String) Organization identifier
+- `site_id` (String) Site identifier
 
 ### Read-Only
 
-- `created_at` (String) Timestamp when the team was created
+- `creator_id` (String) Creator identifier
 - `id` (String) Team identifier
-- `updated_at` (String) Timestamp when the team was last updated
+- `organization_id` (String) Organization identifier
+- `state` (String) Team state (ACTIVE, ARCHIVED, etc.)
 
 <a id="nestedatt--members"></a>
 ### Nested Schema for `members`
@@ -38,8 +39,3 @@ Team resource for managing Atlassian teams.
 Required:
 
 - `account_id` (String) Account ID of the team member
-
-Optional:
-
-- `email` (String) Email address of the team member
-- `role` (String) Role of the team member in the team
