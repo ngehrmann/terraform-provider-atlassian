@@ -10,11 +10,12 @@ terraform {
 
 provider "atlassian" {
   # Required for Teams API - use Atlassian Admin API token
-  api_token = var.atlassian_api_token # Must be Atlassian Admin API token
-  org_id    = var.atlassian_org_id    # Organization ID from Atlassian Admin
-
-  # Optional parameters
-  base_url = "https://api.atlassian.com"
+  api_token    = var.atlassian_api_token
+  email        = var.atlassian_email
+  organization = var.atlassian_organization
+  org_id       = var.atlassian_org_id
+  site_id      = var.atlassian_site_id
+  base_url     = var.atlassian_base_url
 }
 
 # Create a test team
