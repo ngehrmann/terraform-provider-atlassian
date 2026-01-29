@@ -29,21 +29,20 @@ type TeamResource struct {
 
 // TeamResourceModel describes the resource data model.
 type TeamResourceModel struct {
-	ID           types.String `tfsdk:"id"`
-	Name         types.String `tfsdk:"name"`
-	Description  types.String `tfsdk:"description"`
-	Type         types.String `tfsdk:"type"`
-	Organization types.String `tfsdk:"organization"`
-	Members      types.Set    `tfsdk:"members"`
-	CreatedAt    types.String `tfsdk:"created_at"`
-	UpdatedAt    types.String `tfsdk:"updated_at"`
+	ID             types.String `tfsdk:"id"`
+	DisplayName    types.String `tfsdk:"display_name"`
+	Description    types.String `tfsdk:"description"`
+	TeamType       types.String `tfsdk:"team_type"`
+	SiteId         types.String `tfsdk:"site_id"`
+	OrganizationId types.String `tfsdk:"organization_id"`
+	CreatorId      types.String `tfsdk:"creator_id"`
+	State          types.String `tfsdk:"state"`
+	Members        types.Set    `tfsdk:"members"`
 }
 
 // TeamMemberModel describes a team member data model.
 type TeamMemberModel struct {
 	AccountID types.String `tfsdk:"account_id"`
-	Email     types.String `tfsdk:"email"`
-	Role      types.String `tfsdk:"role"`
 }
 
 func (r *TeamResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -63,51 +62,46 @@ func (r *TeamResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"name": schema.StringAttribute{
-				MarkdownDescription: "Team name",
+			"display_name": schema.StringAttribute{
+				MarkdownDescription: "Team display name",
 				Required:            true,
 			},
 			"description": schema.StringAttribute{
 				MarkdownDescription: "Team description",
-				Optional:            true,
-			},
-			"type": schema.StringAttribute{
-				MarkdownDescription: "Team type (e.g., 'development', 'support', 'management')",
 				Required:            true,
 			},
-			"organization": schema.StringAttribute{
-				MarkdownDescription: "Organization identifier",
+			"team_type": schema.StringAttribute{
+				MarkdownDescription: "Team type (OPEN or CLOSED)",
+				Required:            true,
+			},
+			"site_id": schema.StringAttribute{
+				MarkdownDescription: "Site identifier",
 				Optional:            true,
+			},
+			"organization_id": schema.StringAttribute{
+				MarkdownDescription: "Organization identifier",
+				Computed:            true,
+			},
+			"creator_id": schema.StringAttribute{
+				MarkdownDescription: "Creator identifier",
+				Computed:            true,
+			},
+			"state": schema.StringAttribute{
+				MarkdownDescription: "Team state (ACTIVE, ARCHIVED, etc.)",
+				Computed:            true,
 			},
 			"members": schema.SetNestedAttribute{
 				MarkdownDescription: "Team members",
 				Optional:            true,
+				Computed:            true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"account_id": schema.StringAttribute{
 							MarkdownDescription: "Account ID of the team member",
 							Required:            true,
 						},
-						"email": schema.StringAttribute{
-							MarkdownDescription: "Email address of the team member",
-							Optional:            true,
-							Computed:            true,
-						},
-						"role": schema.StringAttribute{
-							MarkdownDescription: "Role of the team member in the team",
-							Optional:            true,
-							Computed:            true,
-						},
 					},
 				},
-			},
-			"created_at": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when the team was created",
-				Computed:            true,
-			},
-			"updated_at": schema.StringAttribute{
-				MarkdownDescription: "Timestamp when the team was last updated",
-				Computed:            true,
 			},
 		},
 	}
@@ -145,15 +139,10 @@ func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, r
 
 	// Create API request body from model
 	createReq := &CreateTeamRequest{
-		Name:         data.Name.ValueString(),
-		Description:  data.Description.ValueString(),
-		Type:         data.Type.ValueString(),
-		Organization: data.Organization.ValueString(),
-	}
-
-	// If organization is not set in the resource, use the client's organization
-	if createReq.Organization == "" {
-		createReq.Organization = r.client.Organization
+		DisplayName: data.DisplayName.ValueString(),
+		Description: data.Description.ValueString(),
+		TeamType:    data.TeamType.ValueString(),
+		SiteId:      data.SiteId.ValueString(),
 	}
 
 	team, err := r.client.CreateTeam(createReq)
@@ -163,35 +152,33 @@ func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	// Map response body to schema and populate Computed attribute values
-	data.ID = types.StringValue(team.ID)
-	data.CreatedAt = types.StringValue(team.CreatedAt)
-	data.UpdatedAt = types.StringValue(team.UpdatedAt)
+	data.ID = types.StringValue(team.TeamID)
+	data.OrganizationId = types.StringValue(team.OrganizationId)
+	data.CreatorId = types.StringValue(team.CreatorId)
+	data.State = types.StringValue(team.State)
 
-	// Handle members if provided
-	if !data.Members.IsNull() && !data.Members.IsUnknown() {
-		var members []TeamMemberModel
-		diags := data.Members.ElementsAs(ctx, &members, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
+	// Map response body to schema and populate Computed attribute values
+	data.ID = types.StringValue(team.TeamID)
+	data.OrganizationId = types.StringValue(team.OrganizationId)
+	data.CreatorId = types.StringValue(team.CreatorId)
+	data.State = types.StringValue(team.State)
+
+	// Set members from response if available
+	if team.Members != nil {
+		memberElements := make([]attr.Value, len(team.Members))
+		memberType := types.ObjectType{
+			AttrTypes: map[string]attr.Type{
+				"account_id": types.StringType,
+			},
 		}
-
-		// Add members to the team
-		for _, member := range members {
-			teamMember := &TeamMember{
-				AccountID: member.AccountID.ValueString(),
-				Email:     member.Email.ValueString(),
-				Role:      member.Role.ValueString(),
-			}
-
-			err := r.client.AddTeamMember(team.ID, teamMember)
-			if err != nil {
-				resp.Diagnostics.AddWarning(
-					"Member Addition Failed",
-					fmt.Sprintf("Unable to add member %s to team: %s", teamMember.AccountID, err),
-				)
-			}
+		for i, member := range team.Members {
+			memberObj, _ := types.ObjectValue(memberType.AttrTypes, map[string]attr.Value{
+				"account_id": types.StringValue(member.AccountID),
+			})
+			memberElements[i] = memberObj
 		}
+		setVal, _ := types.SetValue(memberType, memberElements)
+		data.Members = setVal
 	}
 
 	// Write logs using the tflog package
@@ -224,31 +211,27 @@ func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	}
 
 	// Update the model with the team data
-	data.Name = types.StringValue(team.Name)
+	data.DisplayName = types.StringValue(team.DisplayName)
 	data.Description = types.StringValue(team.Description)
-	data.Type = types.StringValue(team.Type)
-	data.Organization = types.StringValue(team.Organization)
-	data.CreatedAt = types.StringValue(team.CreatedAt)
-	data.UpdatedAt = types.StringValue(team.UpdatedAt)
+	data.TeamType = types.StringValue(team.TeamType)
+	data.OrganizationId = types.StringValue(team.OrganizationId)
+	data.CreatorId = types.StringValue(team.CreatorId)
+	data.State = types.StringValue(team.State)
 
-	// Get team members
-	members, err := r.client.GetTeamMembers(team.ID)
-	if err != nil {
-		resp.Diagnostics.AddWarning("Members Read Error", fmt.Sprintf("Unable to read team members: %s", err))
-	} else {
+	// Handle team members from the API response
+	if team.Members != nil && len(team.Members) > 0 {
 		// Convert members to Terraform set
-		memberElements := make([]attr.Value, len(members))
-		for i, member := range members {
+		memberElements := make([]attr.Value, len(team.Members))
+		memberType := types.ObjectType{
+			AttrTypes: map[string]attr.Type{
+				"account_id": types.StringType,
+			},
+		}
+		for i, member := range team.Members {
 			memberValue, diags := types.ObjectValue(
-				map[string]attr.Type{
-					"account_id": types.StringType,
-					"email":      types.StringType,
-					"role":       types.StringType,
-				},
+				memberType.AttrTypes,
 				map[string]attr.Value{
 					"account_id": types.StringValue(member.AccountID),
-					"email":      types.StringValue(member.Email),
-					"role":       types.StringValue(member.Role),
 				},
 			)
 			resp.Diagnostics.Append(diags...)
@@ -258,16 +241,7 @@ func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 			memberElements[i] = memberValue
 		}
 
-		membersSet, diags := types.SetValue(
-			types.ObjectType{
-				AttrTypes: map[string]attr.Type{
-					"account_id": types.StringType,
-					"email":      types.StringType,
-					"role":       types.StringType,
-				},
-			},
-			memberElements,
-		)
+		membersSet, diags := types.SetValue(memberType, memberElements)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -291,7 +265,7 @@ func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 
 	// Update team basic information
 	updateReq := &UpdateTeamRequest{
-		Name:        data.Name.ValueString(),
+		DisplayName: data.DisplayName.ValueString(),
 		Description: data.Description.ValueString(),
 	}
 
@@ -301,68 +275,12 @@ func (r *TeamResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		return
 	}
 
-	// Update computed fields
-	data.UpdatedAt = types.StringValue(team.UpdatedAt)
-
-	// Handle member updates if members attribute is provided
-	if !data.Members.IsNull() && !data.Members.IsUnknown() {
-		var newMembers []TeamMemberModel
-		diags := data.Members.ElementsAs(ctx, &newMembers, false)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		// Get current members from API
-		currentMembers, err := r.client.GetTeamMembers(data.ID.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to get current team members: %s", err))
-			return
-		}
-
-		// Create maps for comparison
-		newMemberMap := make(map[string]TeamMemberModel)
-		for _, member := range newMembers {
-			newMemberMap[member.AccountID.ValueString()] = member
-		}
-
-		currentMemberMap := make(map[string]TeamMember)
-		for _, member := range currentMembers {
-			currentMemberMap[member.AccountID] = member
-		}
-
-		// Remove members that are no longer in the plan
-		for accountID := range currentMemberMap {
-			if _, exists := newMemberMap[accountID]; !exists {
-				err := r.client.RemoveTeamMember(data.ID.ValueString(), accountID)
-				if err != nil {
-					resp.Diagnostics.AddWarning(
-						"Member Removal Failed",
-						fmt.Sprintf("Unable to remove member %s from team: %s", accountID, err),
-					)
-				}
-			}
-		}
-
-		// Add new members
-		for accountID, member := range newMemberMap {
-			if _, exists := currentMemberMap[accountID]; !exists {
-				teamMember := &TeamMember{
-					AccountID: member.AccountID.ValueString(),
-					Email:     member.Email.ValueString(),
-					Role:      member.Role.ValueString(),
-				}
-
-				err := r.client.AddTeamMember(data.ID.ValueString(), teamMember)
-				if err != nil {
-					resp.Diagnostics.AddWarning(
-						"Member Addition Failed",
-						fmt.Sprintf("Unable to add member %s to team: %s", accountID, err),
-					)
-				}
-			}
-		}
-	}
+	// Update computed fields from response
+	data.DisplayName = types.StringValue(team.DisplayName)
+	data.Description = types.StringValue(team.Description)
+	data.TeamType = types.StringValue(team.TeamType)
+	data.OrganizationId = types.StringValue(team.OrganizationId)
+	data.State = types.StringValue(team.State)
 
 	tflog.Trace(ctx, "updated a team resource")
 

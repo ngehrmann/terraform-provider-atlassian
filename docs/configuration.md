@@ -6,15 +6,26 @@ The Atlassian provider requires several configuration parameters to properly aut
 
 ### Required Parameters
 
-- `api_token`: Your Atlassian API token for authentication
-- `email`: Email address associated with your Atlassian account
+- `api_token`: Your Atlassian API token for authentication (see Authentication section below)
+- `org_id`: Atlassian Organization ID for admin/teams APIs
+
+### Authentication
+
+For the Teams API, you need an **Atlassian Admin API token** (not a Jira or Confluence API token):
+
+1. Go to [Atlassian Admin](https://admin.atlassian.com/)
+2. Navigate to API tokens
+3. Create a token with scopes: `read:team:atlassian` and `write:team:atlassian`
+4. Use this token as your `api_token`
+
+**Note**: Regular Jira/Confluence API tokens will not work with the Teams API.
 
 ### Organization & Site Identification
 
 Atlassian has different types of identifiers for different API endpoints:
 
 #### `organization` (String, Optional)
-- **Purpose**: Legacy organization name or identifier
+- **Purpose**: Legacy organization name or identifier  
 - **Used for**: Fallback when `org_id` is not provided
 - **Format**: Human-readable organization name
 - **Example**: `"my-company"`

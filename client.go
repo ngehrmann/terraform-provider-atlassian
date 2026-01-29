@@ -22,34 +22,41 @@ type AtlassianClient struct {
 
 // Team represents an Atlassian Team
 type Team struct {
-	ID           string       `json:"id,omitempty"`
-	Name         string       `json:"name"`
-	Description  string       `json:"description,omitempty"`
-	Type         string       `json:"type"`
-	Organization string       `json:"organization"`
-	Members      []TeamMember `json:"members,omitempty"`
-	CreatedAt    string       `json:"createdAt,omitempty"`
-	UpdatedAt    string       `json:"updatedAt,omitempty"`
+	TeamID          string           `json:"teamId,omitempty"`
+	DisplayName     string           `json:"displayName"`
+	Description     string           `json:"description,omitempty"`
+	TeamType        string           `json:"teamType,omitempty"`
+	OrganizationId  string           `json:"organizationId,omitempty"`
+	CreatorId       string           `json:"creatorId,omitempty"`
+	State           string           `json:"state,omitempty"`
+	Members         []TeamMember     `json:"members,omitempty"`
+	UserPermissions *UserPermissions `json:"userPermissions,omitempty"`
+}
+
+// UserPermissions represents team permissions
+type UserPermissions struct {
+	AddMembers    bool `json:"ADD_MEMBERS"`
+	DeleteTeam    bool `json:"DELETE_TEAM"`
+	RemoveMembers bool `json:"REMOVE_MEMBERS"`
+	UpdateTeam    bool `json:"UPDATE_TEAM"`
 }
 
 // TeamMember represents a team member
 type TeamMember struct {
 	AccountID string `json:"accountId"`
-	Email     string `json:"email,omitempty"`
-	Role      string `json:"role,omitempty"`
 }
 
 // CreateTeamRequest represents the request to create a team
 type CreateTeamRequest struct {
-	Name         string `json:"name"`
-	Description  string `json:"description,omitempty"`
-	Type         string `json:"type"`
-	Organization string `json:"organization"`
+	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
+	TeamType    string `json:"teamType"`
+	SiteId      string `json:"siteId,omitempty"`
 }
 
 // UpdateTeamRequest represents the request to update a team
 type UpdateTeamRequest struct {
-	Name        string `json:"name,omitempty"`
+	DisplayName string `json:"displayName,omitempty"`
 	Description string `json:"description,omitempty"`
 }
 
@@ -79,13 +86,14 @@ func (c *AtlassianClient) makeRequest(method, path string, body interface{}) (*h
 		reqBody = bytes.NewBuffer(jsonBody)
 	}
 
-	req, err := http.NewRequest(method, c.BaseURL+path, reqBody)
+	fullURL := c.BaseURL + path
+	req, err := http.NewRequest(method, fullURL, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
 
-	// Set authentication headers
-	req.SetBasicAuth(c.Email, c.APIToken)
+	// Set authentication headers - use Bearer token for Teams API
+	req.Header.Set("Authorization", "Bearer "+c.APIToken)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
@@ -99,13 +107,13 @@ func (c *AtlassianClient) makeRequest(method, path string, body interface{}) (*h
 
 // CreateTeam creates a new team in Atlassian
 func (c *AtlassianClient) CreateTeam(team *CreateTeamRequest) (*Team, error) {
-	resp, err := c.makeRequest("POST", c.getTeamAPIPath("/teams"), team)
+	resp, err := c.makeRequest("POST", c.getTeamAPIPath("/teams/"), team)
 	if err != nil {
 		return nil, fmt.Errorf("error creating team: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusCreated {
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("API error creating team: %s - %s", resp.Status, string(body))
 	}
@@ -145,7 +153,7 @@ func (c *AtlassianClient) GetTeam(teamID string) (*Team, error) {
 
 // UpdateTeam updates an existing team
 func (c *AtlassianClient) UpdateTeam(teamID string, updateReq *UpdateTeamRequest) (*Team, error) {
-	resp, err := c.makeRequest("PUT", c.getTeamAPIPath("/teams/"+teamID), updateReq)
+	resp, err := c.makeRequest("PATCH", c.getTeamAPIPath("/teams/"+teamID), updateReq)
 	if err != nil {
 		return nil, fmt.Errorf("error updating team: %w", err)
 	}
@@ -187,64 +195,6 @@ func (c *AtlassianClient) DeleteTeam(teamID string) error {
 	}
 
 	return nil
-}
-
-// AddTeamMember adds a member to a team
-func (c *AtlassianClient) AddTeamMember(teamID string, member *TeamMember) error {
-	resp, err := c.makeRequest("POST", c.getTeamAPIPath("/teams/"+teamID+"/members"), member)
-	if err != nil {
-		return fmt.Errorf("error adding team member: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error adding team member: %s - %s", resp.Status, string(body))
-	}
-
-	return nil
-}
-
-// RemoveTeamMember removes a member from a team
-func (c *AtlassianClient) RemoveTeamMember(teamID, accountID string) error {
-	resp, err := c.makeRequest("DELETE", c.getTeamAPIPath("/teams/"+teamID+"/members/"+accountID), nil)
-	if err != nil {
-		return fmt.Errorf("error removing team member: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
-		// Member already doesn't exist, consider it successful
-		return nil
-	}
-
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("API error removing team member: %s - %s", resp.Status, string(body))
-	}
-
-	return nil
-}
-
-// GetTeamMembers retrieves all members of a team
-func (c *AtlassianClient) GetTeamMembers(teamID string) ([]TeamMember, error) {
-	resp, err := c.makeRequest("GET", c.getTeamAPIPath("/teams/"+teamID+"/members"), nil)
-	if err != nil {
-		return nil, fmt.Errorf("error getting team members: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API error getting team members: %s - %s", resp.Status, string(body))
-	}
-
-	var members []TeamMember
-	if err := json.NewDecoder(resp.Body).Decode(&members); err != nil {
-		return nil, fmt.Errorf("error decoding response: %w", err)
-	}
-
-	return members, nil
 }
 
 // getTeamAPIPath returns the appropriate API path for team operations
