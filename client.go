@@ -248,11 +248,11 @@ func (c *AtlassianClient) GetTeamMembers(teamID string) ([]TeamMember, error) {
 }
 
 // getTeamAPIPath returns the appropriate API path for team operations
-// This uses the organization ID for admin APIs
+// This uses the organization ID for public team APIs
 func (c *AtlassianClient) getTeamAPIPath(endpoint string) string {
 	orgIdentifier := c.OrgId
 	if orgIdentifier == "" {
 		orgIdentifier = c.Organization
 	}
-	return fmt.Sprintf("/admin/v1/orgs/%s%s", orgIdentifier, endpoint)
+	return fmt.Sprintf("/public/teams/v1/org/%s%s", orgIdentifier, endpoint)
 }
