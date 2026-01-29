@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
@@ -71,8 +73,11 @@ func (r *TeamResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				Required:            true,
 			},
 			"team_type": schema.StringAttribute{
-				MarkdownDescription: "Team type (OPEN or CLOSED)",
+				MarkdownDescription: "Team type (OPEN, MEMBER_INVITE, EXTERNAL, ORG_ADMIN_MANAGED)",
 				Required:            true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("OPEN", "MEMBER_INVITE", "EXTERNAL", "ORG_ADMIN_MANAGED"),
+				},
 			},
 			"site_id": schema.StringAttribute{
 				MarkdownDescription: "Site identifier",
@@ -157,12 +162,6 @@ func (r *TeamResource) Create(ctx context.Context, req resource.CreateRequest, r
 	data.CreatorId = types.StringValue(team.CreatorId)
 	data.State = types.StringValue(team.State)
 
-	// Map response body to schema and populate Computed attribute values
-	data.ID = types.StringValue(team.TeamID)
-	data.OrganizationId = types.StringValue(team.OrganizationId)
-	data.CreatorId = types.StringValue(team.CreatorId)
-	data.State = types.StringValue(team.State)
-
 	// Set members from response if available
 	if team.Members != nil {
 		memberElements := make([]attr.Value, len(team.Members))
@@ -218,36 +217,8 @@ func (r *TeamResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	data.CreatorId = types.StringValue(team.CreatorId)
 	data.State = types.StringValue(team.State)
 
-	// Handle team members from the API response
-	if team.Members != nil && len(team.Members) > 0 {
-		// Convert members to Terraform set
-		memberElements := make([]attr.Value, len(team.Members))
-		memberType := types.ObjectType{
-			AttrTypes: map[string]attr.Type{
-				"account_id": types.StringType,
-			},
-		}
-		for i, member := range team.Members {
-			memberValue, diags := types.ObjectValue(
-				memberType.AttrTypes,
-				map[string]attr.Value{
-					"account_id": types.StringValue(member.AccountID),
-				},
-			)
-			resp.Diagnostics.Append(diags...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-			memberElements[i] = memberValue
-		}
-
-		membersSet, diags := types.SetValue(memberType, memberElements)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		data.Members = membersSet
-	}
+	// Note: TeamResponse doesn't include members, so we keep existing members in state
+	// For full member sync, we would need a separate API call to fetch members
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

@@ -21,6 +21,6 @@ provider "atlassian" {
 resource "atlassian_team" "test_team" {
   display_name = "Test Team"
   description  = "A test team created via Terraform"
-  team_type    = "OPEN"                # Valid values: OPEN or CLOSED
+  team_type    = "OPEN"                # Valid values: OPEN, MEMBER_INVITE, EXTERNAL, ORG_ADMIN_MANAGED
   site_id      = var.atlassian_site_id # Optional
 }
